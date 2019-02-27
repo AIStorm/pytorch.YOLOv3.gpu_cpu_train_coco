@@ -14,7 +14,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from tensorboardX import SummaryWriter
+from dataset import prepare_train_dataset, prepare_val_dataset
+#from tensorboardX import SummaryWriter
 
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
@@ -22,6 +23,43 @@ sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 from nets.model_main import ModelMain
 from nets.yolo_loss import YOLOLoss
 from common.coco_dataset import COCODataset
+
+
+TRAINING_PARAMS = \
+{
+    "model_params": {
+        "backbone_name": "darknet_53",
+        "backbone_pretrained": "", #  set empty to disable
+    },
+    "yolo": {
+        "anchors": [[[116, 90], [156, 198], [373, 326]],
+                    [[30, 61], [62, 45], [59, 119]],
+                    [[10, 13], [16, 30], [33, 23]]],
+        "classes": 80,
+    },
+    "lr": {
+        "backbone_lr": 0.001,
+        "other_lr": 0.01,
+        "freeze_backbone": False,   #  freeze backbone wegiths to finetune
+        "decay_gamma": 0.1,
+        "decay_step": 20,           #  decay lr in every ? epochs
+    },
+    "optimizer": {
+        "type": "sgd",
+        "weight_decay": 4e-05,
+    },
+    "batch_size": 16,
+    "train_path": "../data/coco/trainvalno5k.txt",
+    "epochs": 100,
+    "img_h": 416,
+    "img_w": 416,
+    "parallels": [0,1,2,3],                         #  config GPU device
+    "working_dir": "YOUR_WORKING_DIR",              #  replace with your working dir
+    "pretrain_snapshot": "weights/official_yolov3_weights_pytorch.pth",                        #  load checkpoint
+    "evaluate_type": "", 
+    "try": 0,
+    "export_onnx": False,
+}
 
 
 def train(config):
@@ -41,12 +79,12 @@ def train(config):
 
     # Set data parallel
     net = nn.DataParallel(net)
-    net = net.cuda()
+    #net = net.cuda()
 
     # Restore pretrain model
     if config["pretrain_snapshot"]:
         logging.info("Load pretrained weights from {}".format(config["pretrain_snapshot"]))
-        state_dict = torch.load(config["pretrain_snapshot"])
+        state_dict = torch.load(config["pretrain_snapshot"],map_location='cpu')
         net.load_state_dict(state_dict)
 
     # Only export onnx
@@ -73,17 +111,21 @@ def train(config):
                                     config["yolo"]["classes"], (config["img_w"], config["img_h"])))
 
     # DataLoader
-    dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
-                                                         (config["img_w"], config["img_h"]),
-                                                         is_training=True),
-                                             batch_size=config["batch_size"],
-                                             shuffle=True, num_workers=32, pin_memory=True)
+    #dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
+    #                                                     (config["img_w"], config["img_h"]),
+    #                                                     is_training=True),
+    #                                         batch_size=,
+    #                                         shuffle=True, num_workers=32, pin_memory=True)
+
+    train_img_datasets, train_dataloader = prepare_train_dataset('coco', config["img_w"], config["batch_size"])
+    #val_img_datasets, val_dataloder = prepare_val_dataset(
+    #    args.dataset, args.reso, args.bs, seq=args.seq)
 
     # Start the training loop
     logging.info("Start training.")
     for epoch in range(config["epochs"]):
-        for step, samples in enumerate(dataloader):
-            images, labels = samples["image"], samples["label"]
+        for step, (filename,images, labels) in enumerate(train_dataloader):
+            #images, labels = samples["image"], samples["label"]
             start_time = time.time()
             config["global_step"] += 1
 
@@ -95,7 +137,7 @@ def train(config):
             for _ in range(len(losses_name)):
                 losses.append([])
             for i in range(3):
-                _loss_item = yolo_losses[i](outputs[i], labels)
+                _loss_item = yolo_losses[i](outputs[i], list(labels))
                 for j, l in enumerate(_loss_item):
                     losses[j].append(l)
             losses = [sum(l) for l in losses]
@@ -197,14 +239,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG,
                         format="[%(asctime)s %(filename)s] %(message)s")
 
-    if len(sys.argv) != 2:
-        logging.error("Usage: python training.py params.py")
-        sys.exit()
-    params_path = sys.argv[1]
-    if not os.path.isfile(params_path):
-        logging.error("no params file found! path: {}".format(params_path))
-        sys.exit()
-    config = importlib.import_module(params_path[:-3]).TRAINING_PARAMS
+    config = TRAINING_PARAMS
     config["batch_size"] *= len(config["parallels"])
 
     # Create sub_working_dir
@@ -218,7 +253,7 @@ def main():
     logging.info("sub working dir: %s" % sub_working_dir)
 
     # Creat tf_summary writer
-    config["tensorboard_writer"] = SummaryWriter(sub_working_dir)
+    #config["tensorboard_writer"] = SummaryWriter(sub_working_dir)
     logging.info("Please using 'python -m tensorboard.main --logdir={}'".format(sub_working_dir))
 
     # Start training

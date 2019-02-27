@@ -92,7 +92,8 @@ class YOLOLoss(nn.Module):
             return output.data
 
     def get_target(self, target, anchors, in_w, in_h, ignore_threshold):
-        bs = target.size(0)
+        #bs = target.size(0)
+        bs=len(target)
 
         mask = torch.zeros(bs, self.num_anchors, in_h, in_w, requires_grad=False)
         noobj_mask = torch.ones(bs, self.num_anchors, in_h, in_w, requires_grad=False)
@@ -103,14 +104,16 @@ class YOLOLoss(nn.Module):
         tconf = torch.zeros(bs, self.num_anchors, in_h, in_w, requires_grad=False)
         tcls = torch.zeros(bs, self.num_anchors, in_h, in_w, self.num_classes, requires_grad=False)
         for b in range(bs):
-            for t in range(target.shape[1]):
+            tg=target[b].shape[1]
+            for t in range(tg):
                 if target[b, t].sum() == 0:
                     continue
                 # Convert to position relative to box
-                gx = target[b, t, 1] * in_w
-                gy = target[b, t, 2] * in_h
-                gw = target[b, t, 3] * in_w
-                gh = target[b, t, 4] * in_h
+                tens=target[b]
+                gx = tens[ t, 1] * in_w
+                gy = tens[ t, 2] * in_h
+                gw = tens[ t, 3] * in_w
+                gh = tens[t, 4] * in_h
                 # Get grid box indices
                 gi = int(gx)
                 gj = int(gy)
