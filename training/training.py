@@ -1,4 +1,5 @@
 # coding='utf-8'
+# Необходимо в загрузку из COCO добавить использование class ImageBaseAug(object) для улучшения обуччения
 import os
 import sys
 import numpy as np
@@ -22,7 +23,9 @@ sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 # sys.path.insert(0, os.path.join(MY_DIRNAME, '..', 'evaluate'))
 from nets.model_main import ModelMain
 from nets.yolo_loss import YOLOLoss
-from common.coco_dataset import COCODataset
+#from common.coco_dataset import COCODataset
+
+device_run= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 TRAINING_PARAMS = \
@@ -53,7 +56,7 @@ TRAINING_PARAMS = \
     "epochs": 100,
     "img_h": 416,
     "img_w": 416,
-    "parallels": [0,1,2,3],                         #  config GPU device
+    "parallels": [0], #[0,1,2,3],                         #  config GPU device
     "working_dir": "YOUR_WORKING_DIR",              #  replace with your working dir
     "pretrain_snapshot": "weights/official_yolov3_weights_pytorch.pth",                        #  load checkpoint
     "evaluate_type": "", 
@@ -63,12 +66,13 @@ TRAINING_PARAMS = \
 
 
 def train(config):
+    
     config["global_step"] = config.get("start_step", 0)
     is_training = False if config.get("export_onnx") else True
 
     # Load and initialize network
     net = ModelMain(config, is_training=is_training)
-    net.train(is_training)
+    
 
     # Optimizer and learning rate
     optimizer = _get_optimizer(config, net)
@@ -78,14 +82,20 @@ def train(config):
         gamma=config["lr"]["decay_gamma"])
 
     # Set data parallel
-    net = nn.DataParallel(net)
+    #if len(config["parallels"])>1:
+    net = nn.DataParallel(net).to(device_run)
+  #  else:
+    #    net=  net.to(device_run)
     #net = net.cuda()
+    
 
     # Restore pretrain model
     if config["pretrain_snapshot"]:
         logging.info("Load pretrained weights from {}".format(config["pretrain_snapshot"]))
-        state_dict = torch.load(config["pretrain_snapshot"],map_location='cpu')
+        state_dict = torch.load(config["pretrain_snapshot"],map_location=device_run)
         net.load_state_dict(state_dict)
+    
+    net.train(is_training)
 
     # Only export onnx
     # if config.get("export_onnx"):
@@ -108,7 +118,7 @@ def train(config):
     yolo_losses = []
     for i in range(3):
         yolo_losses.append(YOLOLoss(config["yolo"]["anchors"][i],
-                                    config["yolo"]["classes"], (config["img_w"], config["img_h"])))
+                                    config["yolo"]["classes"], (config["img_w"], config["img_h"]),device_run))
 
     # DataLoader
     #dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
@@ -166,15 +176,15 @@ def train(config):
                                                             value,
                                                             config["global_step"])
 
-            if step > 0 and step % 1000 == 0:
+            #if step > 0 and step % 1000 == 0:
                 # net.train(False)
-                _save_checkpoint(net.state_dict(), config)
+               # _save_checkpoint(net.state_dict(), config)
                 # net.train(True)
 
         lr_scheduler.step()
 
     # net.train(False)
-    _save_checkpoint(net.state_dict(), config)
+  #  _save_checkpoint(net.state_dict(), config)
     # net.train(True)
     logging.info("Bye~")
 

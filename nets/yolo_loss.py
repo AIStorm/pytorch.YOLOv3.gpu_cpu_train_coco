@@ -7,8 +7,9 @@ from common.utils import bbox_iou
 
 
 class YOLOLoss(nn.Module):
-    def __init__(self, anchors, num_classes, img_size):
+    def __init__(self, anchors, num_classes, img_size,device):
         super(YOLOLoss, self).__init__()
+        self.device=device
         self.anchors = anchors
         self.num_anchors = len(anchors)
         self.num_classes = num_classes
@@ -48,9 +49,9 @@ class YOLOLoss(nn.Module):
             mask, noobj_mask, tx, ty, tw, th, tconf, tcls = self.get_target(targets, scaled_anchors,
                                                                            in_w, in_h,
                                                                            self.ignore_threshold)
-            mask, noobj_mask = mask.cuda(), noobj_mask.cuda()
-            tx, ty, tw, th = tx.cuda(), ty.cuda(), tw.cuda(), th.cuda()
-            tconf, tcls = tconf.cuda(), tcls.cuda()
+            mask, noobj_mask = mask.to(self.device), noobj_mask.to(self.device)
+            tx, ty, tw, th = tx.to(self.device), ty.to(self.device), tw.to(self.device), th.to(self.device)
+            tconf, tcls = tconf.to(self.device), tcls.to(self.device)
             #  losses.
             loss_x = self.bce_loss(x * mask, tx * mask)
             loss_y = self.bce_loss(y * mask, ty * mask)
@@ -104,16 +105,16 @@ class YOLOLoss(nn.Module):
         tconf = torch.zeros(bs, self.num_anchors, in_h, in_w, requires_grad=False)
         tcls = torch.zeros(bs, self.num_anchors, in_h, in_w, self.num_classes, requires_grad=False)
         for b in range(bs):
-            tg=target[b].shape[1]
-            for t in range(tg):
-                if target[b, t].sum() == 0:
+            tg=target[b]
+            len_tg=len(tg)
+            for t in range(len_tg):
+                if tg[t].sum() == 0:
                     continue
                 # Convert to position relative to box
-                tens=target[b]
-                gx = tens[ t, 1] * in_w
-                gy = tens[ t, 2] * in_h
-                gw = tens[ t, 3] * in_w
-                gh = tens[t, 4] * in_h
+                gx = tg[ t, 0] * in_w
+                gy = tg[ t, 1] * in_h
+                gw = tg[ t, 2] * in_w
+                gh = tg[t, 3] * in_h
                 # Get grid box indices
                 gi = int(gx)
                 gj = int(gy)
@@ -140,6 +141,6 @@ class YOLOLoss(nn.Module):
                 # object
                 tconf[b, best_n, gj, gi] = 1
                 # One-hot encoding of label
-                tcls[b, best_n, gj, gi, int(target[b, t, 0])] = 1
+                tcls[b, best_n, gj, gi, int(tg[ t, 4])] = 1
 
         return mask, noobj_mask, tx, ty, tw, th, tconf, tcls
