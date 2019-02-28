@@ -16,7 +16,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 from dataset import prepare_train_dataset, prepare_val_dataset
-#from tensorboardX import SummaryWriter
+from tensorboardX import SummaryWriter
 
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
@@ -51,13 +51,13 @@ TRAINING_PARAMS = \
         "type": "sgd",
         "weight_decay": 4e-05,
     },
-    "batch_size": 16,
+    "batch_size": 1,
     "train_path": "../data/coco/trainvalno5k.txt",
     "epochs": 100,
     "img_h": 416,
     "img_w": 416,
     "parallels": [0], #[0,1,2,3],                         #  config GPU device
-    "working_dir": "YOUR_WORKING_DIR",              #  replace with your working dir
+    "working_dir": "/media/anton/Base/WORK_DL/Linux/detector/pytorch.YOLOv3.gpu_cpu_train_coco/result/",              #  replace with your working dir
     "pretrain_snapshot": "weights/official_yolov3_weights_pytorch.pth",                        #  load checkpoint
     "evaluate_type": "", 
     "try": 0,
@@ -138,6 +138,7 @@ def train(config):
             #images, labels = samples["image"], samples["label"]
             start_time = time.time()
             config["global_step"] += 1
+            print(filename)
 
             # Forward and backward
             optimizer.zero_grad()
@@ -176,15 +177,15 @@ def train(config):
                                                             value,
                                                             config["global_step"])
 
-            #if step > 0 and step % 1000 == 0:
+            if step > 0 and step % 1000 == 0:
                 # net.train(False)
-               # _save_checkpoint(net.state_dict(), config)
+                _save_checkpoint(net.state_dict(), config)
                 # net.train(True)
 
         lr_scheduler.step()
 
     # net.train(False)
-  #  _save_checkpoint(net.state_dict(), config)
+    _save_checkpoint(net.state_dict(), config)
     # net.train(True)
     logging.info("Bye~")
 
@@ -263,7 +264,7 @@ def main():
     logging.info("sub working dir: %s" % sub_working_dir)
 
     # Creat tf_summary writer
-    #config["tensorboard_writer"] = SummaryWriter(sub_working_dir)
+    config["tensorboard_writer"] = SummaryWriter(sub_working_dir)
     logging.info("Please using 'python -m tensorboard.main --logdir={}'".format(sub_working_dir))
 
     # Start training
