@@ -30,6 +30,33 @@ from common.utils import non_max_suppression, bbox_iou
 cmap = plt.get_cmap('tab20b')
 colors = [cmap(i) for i in np.linspace(0, 1, 20)]
 
+device_run= torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+TRAINING_PARAMS = \
+{
+    "model_params": {
+        "backbone_name": "darknet_53",
+        "backbone_pretrained": "",
+    },
+    "yolo": {
+        "anchors": [[[116, 90], [156, 198], [373, 326]],
+                    [[30, 61], [62, 45], [59, 119]],
+                    [[10, 13], [16, 30], [33, 23]]],
+        "classes": 80,
+    },
+    "batch_size": 16,
+    "confidence_threshold": 0.5,
+    "images_path": "test/images/",
+    "classes_names_path": "data/coco.names",
+    "img_h": 416,
+    "img_w": 416,
+    "parallels": [0],
+    "pretrain_snapshot": "weights/model_test_1cls.pth",
+    #"pretrain_snapshot": "weights/model_test_dataset.pth",
+    #"pretrain_snapshot": "weights/official_yolov3_weights_pytorch.pth",
+}
+
+
 
 def test(config):
     is_training = False
@@ -53,7 +80,7 @@ def test(config):
     yolo_losses = []
     for i in range(3):
         yolo_losses.append(YOLOLoss(config["yolo"]["anchors"][i],
-                                    config["yolo"]["classes"], (config["img_w"], config["img_h"])))
+                                    config["yolo"]["classes"], (config["img_w"], config["img_h"]),device_run))
 
     # prepare images path
     images_name = os.listdir(config["images_path"])
@@ -97,8 +124,8 @@ def test(config):
 
         # write result images. Draw bounding boxes and labels of detections
         classes = open(config["classes_names_path"], "r").read().split("\n")[:-1]
-        if not os.path.isdir("./output/"):
-            os.makedirs("./output/")
+        if not os.path.isdir("test/images/output"):
+            os.makedirs("test/images/output")
         for idx, detections in enumerate(batch_detections):
             plt.figure()
             fig, ax = plt.subplots(1)
@@ -123,14 +150,15 @@ def test(config):
                     # Add the bbox to the plot
                     ax.add_patch(bbox)
                     # Add label
-                    plt.text(x1, y1, s=classes[int(cls_pred)], color='white',
+                    scope=int(cls_conf*100)
+                    plt.text(x1, y1, s=classes[int(cls_pred)]+" "+str(scope), color='white',
                              verticalalignment='top',
                              bbox={'color': color, 'pad': 0})
             # Save generated image with detections
             plt.axis('off')
             plt.gca().xaxis.set_major_locator(NullLocator())
             plt.gca().yaxis.set_major_locator(NullLocator())
-            plt.savefig('output/{}_{}.jpg'.format(step, idx), bbox_inches='tight', pad_inches=0.0)
+            plt.savefig('test/images/output/{}_{}.jpg'.format(step, idx), bbox_inches='tight', pad_inches=0.0)
             plt.close()
     logging.info("Save all results to ./output/")    
 
@@ -139,14 +167,15 @@ def main():
     logging.basicConfig(level=logging.DEBUG,
                         format="[%(asctime)s %(filename)s] %(message)s")
 
-    if len(sys.argv) != 2:
-        logging.error("Usage: python test_images.py params.py")
-        sys.exit()
-    params_path = sys.argv[1]
-    if not os.path.isfile(params_path):
-        logging.error("no params file found! path: {}".format(params_path))
-        sys.exit()
-    config = importlib.import_module(params_path[:-3]).TRAINING_PARAMS
+    # if len(sys.argv) != 2:
+    #     logging.error("Usage: python test_images.py params.py")
+    #     sys.exit()
+    # params_path = sys.argv[1]
+    # if not os.path.isfile(params_path):
+    #     logging.error("no params file found! path: {}".format(params_path))
+    #     sys.exit()
+    # config = importlib.import_module(params_path[:-3]).TRAINING_PARAMS
+    config=TRAINING_PARAMS
     config["batch_size"] *= len(config["parallels"])
 
     # Start training

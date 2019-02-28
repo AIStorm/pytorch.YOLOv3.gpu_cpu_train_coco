@@ -32,7 +32,7 @@ TRAINING_PARAMS = \
 {
     "model_params": {
         "backbone_name": "darknet_53",
-        "backbone_pretrained": "", #  set empty to disable
+        "backbone_pretrained": "weights/darknet53_weights_pytorch.pth", #  set empty to disable
     },
     "yolo": {
         "anchors": [[[116, 90], [156, 198], [373, 326]],
@@ -58,7 +58,7 @@ TRAINING_PARAMS = \
     "img_w": 416,
     "parallels": [0], #[0,1,2,3],                         #  config GPU device
     "working_dir": "/media/anton/Base/WORK_DL/Linux/detector/pytorch.YOLOv3.gpu_cpu_train_coco/result/",              #  replace with your working dir
-    "pretrain_snapshot": "weights/official_yolov3_weights_pytorch.pth",                        #  load checkpoint
+    "pretrain_snapshot": "",#"weights/official_yolov3_weights_pytorch.pth",                        #  load checkpoint
     "evaluate_type": "", 
     "try": 0,
     "export_onnx": False,
@@ -138,7 +138,7 @@ def train(config):
             #images, labels = samples["image"], samples["label"]
             start_time = time.time()
             config["global_step"] += 1
-            print(filename)
+            #print(filename)
 
             # Forward and backward
             optimizer.zero_grad()
